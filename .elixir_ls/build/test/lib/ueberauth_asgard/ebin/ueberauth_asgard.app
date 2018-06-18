@@ -1,0 +1,12 @@
+{application,ueberauth_asgard,
+             [{applications,[kernel,stdlib,elixir,logger,httpoison,ueberauth,
+                             jose,poison,plug]},
+              {description,"ueberauth_asgard"},
+              {modules,['Elixir.Ueberauth.Strategy.Asgard',
+                        'Elixir.Ueberauth.Strategy.Asgard.OpenID',
+                        'Elixir.UeberauthAsgard',
+                        'Elixir.UeberauthAsgard.Strategy.Asgard.JWS']},
+              {registered,[]},
+              {vsn,"0.1.0"},
+              {extra_applications,[logger,httpoison,ueberauth]},
+              {mod,{'Elixir.UeberauthAsgard',[]}}]}.
