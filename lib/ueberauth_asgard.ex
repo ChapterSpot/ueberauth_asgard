@@ -6,8 +6,8 @@ defmodule UeberauthAsgard do
   def start(_type, _args) do
     children = [
       %{
-        id: UeberauthAsgard.Strategy.Asgard.JWS,
-        start: {UeberauthAsgard.Strategy.Asgard.JWS, :start_link, [:asgard_jws_cache]}
+        id: Ueberauth.Strategy.Asgard.JWS,
+        start: {Ueberauth.Strategy.Asgard.JWS, :start_link, [:asgard_jws_cache]}
       }
     ]
 
