@@ -89,7 +89,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
             access_token: access_token,
             id_token: response.body["id_token"],
             scopes: response.body["scope"] |> String.split(),
-            expiry: response.body["expires_in"] |> calculate_expiry()
+            expiry: response.body["expires_in"] |> calculate_expiry!()
           })
 
         {:ok, response}
@@ -109,11 +109,11 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
   defp post_headers(), do: %{"Content-Type" => "application/x-www-form-urlencoded"}
 
-  defp calculate_expiry(expiry) do
+  defp calculate_expiry!(expiry) do
     now = DateTime.utc_now() |> DateTime.to_unix()
     now = now + expiry
 
-    DateTime.from_unix(now)
+    DateTime.from_unix!(now)
   end
 
   # -- Base callbacks

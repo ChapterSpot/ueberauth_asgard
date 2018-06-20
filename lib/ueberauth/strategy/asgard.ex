@@ -35,8 +35,9 @@ defmodule Ueberauth.Strategy.Asgard do
           |> Map.take(~w(sub given_name family_name email))
           |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
 
-
-        put_private(conn, :asgard_user, asgard_user)
+        conn
+        |> put_private(:asgard, client)
+        |> put_private(:asgard_user, asgard_user)
 
       {:error, error_description} ->
         set_errors!(conn, [error("asgard", error_description)])
@@ -54,6 +55,43 @@ defmodule Ueberauth.Strategy.Asgard do
     do: set_errors!(conn, [error("missing_id_token", "No id token received")])
 
   def handle_cleanup!(conn) do
-    conn |> put_private(:asgard_user, nil)
+    conn
+    |> put_private(:asgard_user, nil)
+    |> put_private(:asgard, nil)
   end
+
+  def credentials(conn) do
+    %Credentials{
+      token: conn.private.asgard.access_token,
+      token_type: "Bearer",
+      expires: true,
+      expires_at: conn.private.asgard.expiry,
+      scopes: conn.private.asgard.scopes,
+      other: %{
+        id_token: conn.private.asgard.id_token
+      }
+    }
+  end
+
+  def extra(conn) do
+    %Extra{
+      raw_info: %{
+        access_token: conn.private.asgard.access_token,
+        id_token: conn.private.asgard.id_token,
+        expiry: conn.private.asgard.expiry
+      }
+    }
+  end
+
+  def info(conn) do
+    asgard_user = conn.private.asgard_user
+
+    %Info{
+      first_name: asgard_user.given_name,
+      last_name: asgard_user.family_name,
+      email: asgard_user.email
+    }
+  end
+
+  def uid(conn), do: conn.private.asgard_user.sub
 end
