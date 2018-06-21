@@ -12,6 +12,8 @@ defmodule Ueberauth.Strategy.Asgard do
       |> options()
       |> Keyword.merge(redirect_uri: callback_url(conn))
 
+    Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
+
     authorize_url = OpenID.authorize_url!(options)
 
     redirect!(conn, authorize_url)

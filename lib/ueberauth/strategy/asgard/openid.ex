@@ -17,6 +17,8 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     url = Keyword.get(opts, :host)
     authorize_endpoint = Keyword.get(opts, :authorize_endpoint)
 
+    Logger.debug("Ueberauth.Strategy.Asgard.OpenID opts: #{inspect(opts)}")
+
     query_params =
       [
         client_id: Keyword.get(opts, :client_id),

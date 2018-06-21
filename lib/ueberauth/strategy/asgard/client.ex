@@ -95,7 +95,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
         {:ok, response}
 
       {:error, error} ->
-        {:error, [{:error, "unknown"}, {:error_message, "An unknown error occurred."}]}
+        {:error, [{:error, "unknown"}, {:error_message, error}]}
     end
   end
 
