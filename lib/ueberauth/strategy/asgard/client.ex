@@ -122,7 +122,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     config = Application.get_env(:ueberauth, Asgard.OpenID)
 
     url = Keyword.get(config, :host)
-    url = Keyword.get(config, :internal_host, url)
+    url = Keyword.get(config, :internal_host, url) || url
 
     endpoint =
       case endpoint do
