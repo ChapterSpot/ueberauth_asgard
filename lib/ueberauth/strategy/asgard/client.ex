@@ -15,12 +15,20 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
   alias Ueberauth.Strategy.Asgard
 
-  defstruct [:client_id, :client_secret, :access_token, :redirect_uri, :id_token, :scopes, :expiry]
+  defstruct [:client_id,
+            :client_secret,
+            :access_token,
+            :id_token,
+            :redirect_uri,
+            :id_token,
+            :scopes,
+            :expiry]
 
   @type t :: %__MODULE__{
           client_id: String.t() | nil,
           client_secret: String.t() | nil,
           access_token: String.t() | nil,
+          id_token: String.t() | nil,
           redirect_uri: String.t() | nil,
           scopes: List.t() | nil,
           expiry: DateTime.t() | nil
@@ -96,6 +104,28 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
       {:error, error} ->
         {:error, [{:error, "unknown"}, {:error_message, error}]}
+    end
+  end
+
+  def logout(%{id_token_hint: id_token_hint} = params) when is_nil(id_token_hint) === false and byte_size(id_token_hint) > 0 do
+    session_end_endpoint = Asgard.OpenID.logout_url()
+
+    config = Application.get_env(:ueberauth, Asgard.OpenID, [])
+    post_logout_redirect_uri = Keyword.get(config, :post_logout_redirect_uri)
+
+    query_params =
+      if (post_logout_redirect_uri),
+        do: [post_logout_redirect_uri: post_logout_redirect_uri],
+        else: []
+
+    query_params =
+      if (post_logout_redirect_uri && Map.has_key?(params, :state)),
+        do: query_params ++ [state: params.state],
+        else: query_params
+
+    query_params |> case do
+      [_ | _] -> session_end_endpoint <> "?" <> URI.encode_query(query_params)
+      _ -> session_end_endpoint
     end
   end
 

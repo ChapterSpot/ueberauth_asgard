@@ -9,7 +9,8 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     internal_host: "http://asgard:3000",
     authorize_endpoint: "/authorize",
     token_endpoint: "/token",
-    certificates_endpoint: "/certificates"
+    certificates_endpoint: "/certificates",
+    session_end_endpoint: "/session/end"
   ]
 
   def authorize_url!(opts \\ []) do
@@ -60,6 +61,21 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     end
   end
 
+  def logout_url(opts \\ []) do
+    config = Keyword.merge(default_options(), opts)
+
+    host = Keyword.get(config, :host)
+    session_end_endpoint = Keyword.get(config, :session_end_endpoint, "")
+
+    session_end_endpoint =
+      session_end_endpoint |> case do
+        <<"/" <> _>> -> session_end_endpoint
+        _ -> "/" <> session_end_endpoint
+      end
+
+    host <> session_end_endpoint
+  end
+
   def verify_token(token) when is_nil(token) or token === "",
     do: {:error, "id token is not found"}
 
@@ -92,7 +108,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
   def decode_token(token), do: JOSE.JWT.peek_payload(token)
 
   defp default_options(),
-    do: Keyword.merge(@default_opts, Application.get_env(:ueberauth, __MODULE__))
+    do: Keyword.merge(@default_opts, Application.get_env(:ueberauth, __MODULE__, []))
 
   defp generate_nonce([length: length]),
     do: :crypto.strong_rand_bytes(length) |> Base.url_encode64(padding: false)
