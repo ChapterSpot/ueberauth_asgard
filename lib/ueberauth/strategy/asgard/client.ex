@@ -117,7 +117,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
     query_params =
       if (post_logout_redirect_uri),
-        do: [post_logout_redirect_uri: post_logout_redirect_uri],
+        do: query_params ++ [post_logout_redirect_uri: post_logout_redirect_uri],
         else: query_params
 
     query_params =
