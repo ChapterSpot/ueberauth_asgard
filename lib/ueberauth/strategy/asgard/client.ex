@@ -118,7 +118,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     query_params =
       if (post_logout_redirect_uri),
         do: [post_logout_redirect_uri: post_logout_redirect_uri],
-        else: []
+        else: query_params
 
     query_params =
       if (post_logout_redirect_uri && Map.has_key?(params, :state)),
@@ -126,8 +126,8 @@ defmodule Ueberauth.Strategy.Asgard.Client do
         else: query_params
 
     query_params |> case do
+      [_] -> session_end_endpoint
       [_ | _] -> session_end_endpoint <> "?" <> URI.encode_query(query_params)
-      _ -> session_end_endpoint
     end
   end
 
