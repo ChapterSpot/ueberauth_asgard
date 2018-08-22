@@ -113,6 +113,8 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     config = Application.get_env(:ueberauth, Asgard.OpenID, [])
     post_logout_redirect_uri = Keyword.get(config, :post_logout_redirect_uri)
 
+    query_params = [id_token_hint: id_token_hint]
+
     query_params =
       if (post_logout_redirect_uri),
         do: [post_logout_redirect_uri: post_logout_redirect_uri],
