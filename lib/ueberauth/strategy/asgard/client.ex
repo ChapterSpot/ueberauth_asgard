@@ -107,6 +107,8 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     end
   end
 
+  def logout(nil), do: nil
+
   def logout(%{id_token_hint: id_token_hint} = params) when is_nil(id_token_hint) === false and byte_size(id_token_hint) > 0 do
     session_end_endpoint = Asgard.OpenID.logout_url()
 
@@ -130,6 +132,8 @@ defmodule Ueberauth.Strategy.Asgard.Client do
       [_ | _] -> session_end_endpoint <> "?" <> URI.encode_query(query_params)
     end
   end
+
+  def logout(_), do: nil
 
   defp build_params({:token, %{} = params}) do
     param_whitelist = ~w(code client_id client_secret grant_type redirect_uri)a
