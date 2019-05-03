@@ -89,9 +89,9 @@ defmodule Ueberauth.Strategy.Asgard do
     asgard_user = conn.private.asgard_user
 
     %Info{
-      first_name: asgard_user.given_name,
-      last_name: asgard_user.family_name,
-      email: asgard_user.email
+      first_name: Map.get(asgard_user, :given_name),
+      last_name: Map.get(asgard_user, :family_name),
+      email: Map.get(asgard_user, :email)
     }
   end
 
