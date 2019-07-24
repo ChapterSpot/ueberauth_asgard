@@ -76,6 +76,14 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     certificate
   end
 
+  def generate_email_hint_signature(email, options) do
+    client_secret = Keyword.get(options, :client_secret)
+
+    if not is_nil(client_secret) do
+      :crypto.hmac(:sha256, client_secret, email)
+    end
+  end
+
   def get_token!(%Asgard.Client{} = client, code) do
     {:ok, client} = get_token(client, code)
     client

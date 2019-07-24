@@ -17,6 +17,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     opts = Keyword.merge(default_options(), opts)
     url = Keyword.get(opts, :host)
     authorize_endpoint = Keyword.get(opts, :authorize_endpoint)
+    email_hint = Keyword.get(opts, :email_hint)
 
     Logger.debug("Ueberauth.Strategy.Asgard.OpenID opts: #{inspect(opts)}")
 
@@ -26,11 +27,21 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
         scope: Keyword.get(opts, :scopes),
         response_type: Keyword.get(opts, :response_type),
         redirect_uri: Keyword.get(opts, :redirect_uri),
-        nonce: generate_nonce(length: 16)
+        nonce: generate_nonce(length: 16),
       ]
 
-      url <> authorize_endpoint <> "?" <> URI.encode_query(query_params)
-    end
+    query_params =
+      if not is_nil(email_hint) do
+        Keyword.merge(
+          query_params,
+          [email_hint: email_hint, eh_sig: Asgard.Client.generate_email_hint_signature(email_hint, opts)]
+        )
+      else
+        query_params
+      end
+
+    url <> authorize_endpoint <> "?" <> URI.encode_query(query_params)
+  end
 
   def exchange_code_for_token(opts \\ []) do
     code = Keyword.get(opts, :code)
@@ -105,6 +116,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
 
   def decode_signature(token), do: JOSE.JWT.peek_protected(token)
 
+  @spec decode_token(binary | {any, binary | map} | map) :: [any] | JOSE.JWT.t()
   def decode_token(token), do: JOSE.JWT.peek_payload(token)
 
   defp default_options(),

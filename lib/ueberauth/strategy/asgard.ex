@@ -11,6 +11,7 @@ defmodule Ueberauth.Strategy.Asgard do
       conn
       |> options()
       |> Keyword.merge(redirect_uri: callback_url(conn))
+      |> maybe_email_hint(conn)
 
     Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
 
@@ -96,4 +97,13 @@ defmodule Ueberauth.Strategy.Asgard do
   end
 
   def uid(conn), do: conn.private.asgard_user.sub
+
+  defp maybe_email_hint(options, conn) do
+    email =
+      conn
+      |> Plug.Conn.fetch_query_params()
+      |> get_in([:query_params, :email_hint])
+
+    if not is_nil(email), do: Keyword.merge(options, [email_hint: email]), else: options
+  end
 end
