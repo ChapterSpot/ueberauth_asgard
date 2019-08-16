@@ -15,14 +15,16 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
   alias Ueberauth.Strategy.Asgard
 
-  defstruct [:client_id,
-            :client_secret,
-            :access_token,
-            :id_token,
-            :redirect_uri,
-            :id_token,
-            :scopes,
-            :expiry]
+  defstruct [
+    :client_id,
+    :client_secret,
+    :access_token,
+    :id_token,
+    :redirect_uri,
+    :id_token,
+    :scopes,
+    :expiry
+  ]
 
   @type t :: %__MODULE__{
           client_id: String.t() | nil,
@@ -49,13 +51,12 @@ defmodule Ueberauth.Strategy.Asgard.Client do
   def certificates(kid) do
     certificate =
       case certificates() do
-        {:error, error}
-          -> {:error, error}
+        {:error, error} ->
+          {:error, error}
 
         certificates ->
           certificates
           |> Enum.find(fn cert -> cert["kid"] === kid end)
-
       end
 
     case certificate do
@@ -67,7 +68,6 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
       certificate ->
         {:ok, {:certificate, certificate}}
-
     end
   end
 
@@ -81,6 +81,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
     if not is_nil(client_secret) do
       :crypto.hmac(:sha256, client_secret, email)
+      |> Base.encode64(padding: false)
     end
   end
 
@@ -100,8 +101,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
       {:ok, %{body: %{"access_token" => access_token}} = response} ->
         response =
-          client |>
-          Map.merge(%{
+          Map.merge(client, %{
             access_token: access_token,
             id_token: response.body["id_token"],
             scopes: response.body["scope"] |> String.split(),
@@ -117,7 +117,8 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
   def logout(nil), do: nil
 
-  def logout(%{id_token_hint: id_token_hint} = params) when is_nil(id_token_hint) === false and byte_size(id_token_hint) > 0 do
+  def logout(%{id_token_hint: id_token_hint} = params)
+      when is_nil(id_token_hint) === false and byte_size(id_token_hint) > 0 do
     session_end_endpoint = Asgard.OpenID.logout_url()
 
     config = Application.get_env(:ueberauth, Asgard.OpenID, [])
@@ -126,16 +127,17 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     query_params = [id_token_hint: id_token_hint]
 
     query_params =
-      if (post_logout_redirect_uri),
+      if post_logout_redirect_uri,
         do: query_params ++ [post_logout_redirect_uri: post_logout_redirect_uri],
         else: query_params
 
     query_params =
-      if (post_logout_redirect_uri && Map.has_key?(params, :state)),
+      if post_logout_redirect_uri && Map.has_key?(params, :state),
         do: query_params ++ [state: params.state],
         else: query_params
 
-    query_params |> case do
+    query_params
+    |> case do
       [_] -> session_end_endpoint
       [_ | _] -> session_end_endpoint <> "?" <> URI.encode_query(query_params)
     end

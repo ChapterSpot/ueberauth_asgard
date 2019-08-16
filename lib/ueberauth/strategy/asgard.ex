@@ -2,7 +2,7 @@ defmodule Ueberauth.Strategy.Asgard do
   use Ueberauth.Strategy
   require Logger
 
-  alias Ueberauth.Strategy.Asgard.OpenID
+  alias Ueberauth.Strategy.Asgard.{Client, OpenID}
   alias Ueberauth.Auth.{Credentials, Extra, Info}
   alias Plug.Conn
 
@@ -11,13 +11,46 @@ defmodule Ueberauth.Strategy.Asgard do
       conn
       |> options()
       |> Keyword.merge(redirect_uri: callback_url(conn))
-      |> maybe_email_hint(conn)
+
+    email_hint = conn.params["email_hint"]
 
     Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
+
+    options =
+      unless is_nil(email_hint),
+        do: Keyword.put(options, :email_hint, email_hint),
+        else: options
 
     authorize_url = OpenID.authorize_url!(options)
 
     redirect!(conn, authorize_url)
+  end
+
+  def handle_callback!(%Conn{params: %{"id_token" => token}} = conn) do
+    config = options(conn)
+
+    client = %Client{
+      client_id: Keyword.get(config, :client_id),
+      client_secret: Keyword.get(config, :client_secret),
+      id_token: token,
+      redirect_uri: Keyword.get(config, :redirect_uri),
+      scopes: Keyword.get(config, :scopes)
+    }
+
+    case OpenID.verify_token(client) do
+      {:ok, %JOSE.JWT{fields: claims}} ->
+        asgard_user =
+          claims
+          |> Map.take(~w(sub given_name family_name email))
+          |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+
+        conn
+        |> put_private(:asgard, client)
+        |> put_private(:asgard_user, asgard_user)
+
+      {:error, error_description} ->
+        set_errors!(conn, [error("asgard", error_description)])
+    end
   end
 
   def handle_callback!(%Conn{params: %{"code" => code}} = conn) do
@@ -33,6 +66,7 @@ defmodule Ueberauth.Strategy.Asgard do
     case OpenID.exchange_code_for_token(options) do
       {:ok, client} ->
         %{fields: claims} = OpenID.decode_token(client.id_token)
+
         asgard_user =
           claims
           |> Map.take(~w(sub given_name family_name email))
@@ -97,13 +131,4 @@ defmodule Ueberauth.Strategy.Asgard do
   end
 
   def uid(conn), do: conn.private.asgard_user.sub
-
-  defp maybe_email_hint(options, conn) do
-    email =
-      conn
-      |> Plug.Conn.fetch_query_params()
-      |> get_in([:query_params, :email_hint])
-
-    if not is_nil(email), do: Keyword.merge(options, [email_hint: email]), else: options
-  end
 end
