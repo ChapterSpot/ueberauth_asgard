@@ -81,7 +81,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
     if not is_nil(client_secret) do
       :crypto.hmac(:sha256, client_secret, email)
-      |> Base.encode64(padding: false)
+      |> Base.encode64()
     end
   end
 
