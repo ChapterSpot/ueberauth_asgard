@@ -12,7 +12,12 @@ defmodule Ueberauth.Strategy.Asgard do
       |> options()
       |> Keyword.merge(redirect_uri: callback_url(conn))
 
-    options = Keyword.merge(options, email_hint: conn.params["email_hint"])
+    options =
+      Keyword.merge(
+        options,
+        email_hint: conn.params["email_hint"],
+        state: conn.params["state"]
+      )
 
     Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
 

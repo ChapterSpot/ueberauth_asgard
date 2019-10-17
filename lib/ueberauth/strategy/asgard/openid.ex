@@ -23,14 +23,17 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
 
     Logger.debug("Ueberauth.Strategy.Asgard.OpenID opts: #{inspect(opts)}")
 
-    query_params = [
-      client_id: Keyword.get(opts, :client_id),
-      scope: Keyword.get(opts, :scopes),
-      response_mode: Keyword.get(opts, :response_mode),
-      response_type: Keyword.get(opts, :response_type),
-      redirect_uri: Keyword.get(opts, :redirect_uri),
-      nonce: generate_nonce(length: 16)
-    ]
+    query_params =
+      [
+        client_id: Keyword.get(opts, :client_id),
+        scope: Keyword.get(opts, :scopes),
+        response_mode: Keyword.get(opts, :response_mode),
+        response_type: Keyword.get(opts, :response_type),
+        redirect_uri: Keyword.get(opts, :redirect_uri),
+        nonce: generate_nonce(length: 16),
+        state: Keyword.get(opts, :state)
+      ]
+      |> Enum.filter(fn {_k, v} -> not is_nil(v) end)
 
     query_params =
       if not is_nil(email_hint) do
