@@ -74,21 +74,6 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
       {:verify_token, _} ->
         {:error, [{:error, "verify_token"}, {:error_message, "Token could not be verified"}]}
     end
-
-    # case client |> Asgard.Client.get_token(code) do
-    #   {:ok, %Asgard.Client{access_token: nil}} ->
-    #     {:error,
-    #      [{:error, "no_access_token"}, {:error_message, "Expected token call to return a token"}]}
-
-    #   {:ok, client} ->
-    #     case verify_token(client) do
-    #       {:ok, _} -> {:ok, client}
-    #       {:error, error} -> {:error, [{:error, "invalid_token"}, {:error_message, error}]}
-    #     end
-
-    #   {:error, error} ->
-    #     {:error, error}
-    # end
   end
 
   def logout_url(opts \\ []) do
