@@ -12,16 +12,14 @@ defmodule Ueberauth.Strategy.Asgard do
       |> options()
       |> Keyword.merge(redirect_uri: callback_url(conn))
 
-    email_hint = conn.params["email_hint"]
+    options = Keyword.merge(options, email_hint: conn.params["email_hint"])
 
     Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
 
-    options =
-      unless is_nil(email_hint),
-        do: Keyword.put(options, :email_hint, email_hint),
-        else: options
-
-    authorize_url = OpenID.authorize_url!(options)
+    authorize_url =
+      options
+      |> OpenID.authorize_url!()
+      |> URI.to_string()
 
     redirect!(conn, authorize_url)
   end

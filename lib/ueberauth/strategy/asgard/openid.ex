@@ -14,6 +14,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     session_end_endpoint: "/session/end"
   ]
 
+  @spec authorize_url!([]) :: URI.t()
   def authorize_url!(opts \\ []) do
     opts = Keyword.merge(default_options(), opts)
     url = Keyword.get(opts, :host)
@@ -41,8 +42,11 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
       else
         query_params
       end
+      |> URI.encode_query()
 
-    url <> authorize_endpoint <> "?" <> URI.encode_query(query_params)
+    (url <> authorize_endpoint <> "?")
+    |> Kernel.<>(query_params)
+    |> URI.parse()
   end
 
   def exchange_code_for_token(opts \\ []) do
