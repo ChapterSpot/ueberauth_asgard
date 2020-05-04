@@ -164,7 +164,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
   # -- Base callbacks
 
-  def process_url(endpoint) do
+  def process_request_url(endpoint) do
     config = Application.get_env(:ueberauth, Asgard.OpenID)
 
     url = Keyword.get(config, :host)
