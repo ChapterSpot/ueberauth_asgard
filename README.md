@@ -1,5 +1,7 @@
 # UeberauthAsgard
 
+Open-source FSID OAuth2 Strategy for Überauth. FSID is a branded version of Asgard, an OpenID Connect & OAuth 2.0 provider built by ChapterSpot.
+
 **TODO: Add description**
 
 ## Installation
