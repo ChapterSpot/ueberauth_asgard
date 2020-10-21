@@ -21,7 +21,6 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     :access_token,
     :id_token,
     :redirect_uri,
-    :id_token,
     :scopes,
     :expiry
   ]
