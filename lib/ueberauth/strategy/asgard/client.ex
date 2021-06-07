@@ -21,7 +21,6 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     :access_token,
     :id_token,
     :redirect_uri,
-    :id_token,
     :scopes,
     :expiry
   ]
@@ -80,9 +79,16 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     client_secret = Keyword.get(options, :client_secret)
 
     if not is_nil(client_secret) do
-      :crypto.hmac(:sha256, client_secret, email)
-      |> Base.encode64()
+      do_email_hint_sig(client_secret, email)
     end
+  end
+
+  if Code.ensure_loaded?(:crypto) and function_exported?(:crypto, :hmac, 3) do
+    defp do_email_hint_sig(secret, email),
+      do: :crypto.hmac(:sha256, secret, email) |> Base.encode64()
+  else
+    defp do_email_hint_sig(secret, email),
+      do: :crypto.mac(:hmac, :sha256, secret, email) |> Base.encode64()
   end
 
   def get_token!(%Asgard.Client{} = client, code) do

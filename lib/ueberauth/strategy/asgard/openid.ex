@@ -69,6 +69,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     else
       {:token, error} ->
         Logger.error("Error communicating with FSID: #{inspect(error)}")
+
         {:error,
          [
            {:error, "access_token"},
