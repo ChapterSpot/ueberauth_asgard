@@ -16,7 +16,8 @@ defmodule Ueberauth.Strategy.Asgard do
       Keyword.merge(
         options,
         email_hint: conn.params["email_hint"],
-        state: conn.params["state"]
+        state: conn.params["state"],
+        acr_values: conn.params["acr_values"]
       )
 
     Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
@@ -44,7 +45,7 @@ defmodule Ueberauth.Strategy.Asgard do
       {:ok, %JOSE.JWT{fields: claims}} ->
         asgard_user =
           claims
-          |> Map.take(~w(sub given_name family_name email))
+          |> Map.take(~w(sub given_name family_name email amr))
           |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
 
         conn
@@ -72,7 +73,7 @@ defmodule Ueberauth.Strategy.Asgard do
 
         asgard_user =
           claims
-          |> Map.take(~w(sub given_name family_name email))
+          |> Map.take(~w(sub given_name family_name email amr))
           |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
 
         conn
@@ -108,7 +109,8 @@ defmodule Ueberauth.Strategy.Asgard do
       expires_at: conn.private.asgard.expiry,
       scopes: conn.private.asgard.scopes,
       other: %{
-        id_token: conn.private.asgard.id_token
+        id_token: conn.private.asgard.id_token,
+        amr: conn.private.asgard_user.amr
       }
     }
   end
