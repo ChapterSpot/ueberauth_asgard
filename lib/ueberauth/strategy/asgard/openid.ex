@@ -31,7 +31,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
         response_type: Keyword.get(opts, :response_type),
         redirect_uri: Keyword.get(opts, :redirect_uri),
         nonce: generate_nonce(length: 16),
-        state: get_state(opts),
+        state: Keyword.get(opts, :state),
         acr_values: Keyword.get(opts, :acr_values)
       ]
       |> Enum.filter(fn {_k, v} -> not is_nil(v) end)
@@ -156,10 +156,6 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     } = decode_signature(token)
 
     kid
-  end
-
-  defp get_state(opts) do
-    Keyword.get(opts, :state, generate_nonce(length: 16))
   end
 
   defp validate({type, %JOSE.JWT{} = jwt}, %Asgard.Client{} = client),

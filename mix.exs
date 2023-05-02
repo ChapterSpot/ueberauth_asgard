@@ -29,7 +29,7 @@ defmodule UeberauthAsgard.MixProject do
   defp deps do
     [
       {:plug, "~> 1.0"},
-      {:ueberauth, "~> 0.3"},
+      {:ueberauth, "~> 0.7"},
       {:jose, "~> 1.8"},
       {:httpoison, "~> 1.6"},
       {:poison, "~> 3.1"}

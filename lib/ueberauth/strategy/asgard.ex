@@ -16,9 +16,9 @@ defmodule Ueberauth.Strategy.Asgard do
       Keyword.merge(
         options,
         email_hint: conn.params["email_hint"],
-        state: conn.params["state"],
         acr_values: conn.params["acr_values"]
       )
+      |> with_state_param(conn)
 
     Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
 
