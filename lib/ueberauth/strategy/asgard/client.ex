@@ -117,8 +117,8 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     {params, headers} = token_auth(params, client)
 
     case post("/token", {:form, params}, headers, recv_timeout: 10_000, timeout: 10_000) do
-      {:ok, %{body: %{"error" => error}} = response} ->
-        {:error, [{:error, error}, {:error_message, response.body["error_description"]}]}
+      {:ok, %{body: %{"error" => error}}} ->
+        {:error, [error: error, error_message: "FSID token request failed"]}
 
       {:ok, %{body: %{"access_token" => access_token}} = response} ->
         response =
@@ -126,16 +126,20 @@ defmodule Ueberauth.Strategy.Asgard.Client do
             access_token: access_token,
             refresh_token: response.body["refresh_token"],
             id_token: response.body["id_token"],
-            scopes: (response.body["scope"] || "") |> String.split(),
+            scopes: token_scopes(response.body["scope"], client.scopes),
             expiry: response.body["expires_in"] |> calculate_expiry!()
           })
 
         {:ok, response}
 
-      {:error, error} ->
-        {:error, [{:error, "unknown"}, {:error_message, error}]}
+      {:error, _error} ->
+        {:error, [error: "unknown", error_message: "FSID token request failed"]}
     end
   end
+
+  defp token_scopes(nil, requested) when is_list(requested), do: requested
+  defp token_scopes(nil, requested), do: String.split(requested || "")
+  defp token_scopes(scope, _requested), do: String.split(scope)
 
   def logout(nil), do: nil
 

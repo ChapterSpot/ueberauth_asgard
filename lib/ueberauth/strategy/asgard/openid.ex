@@ -54,6 +54,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
   end
 
   def exchange_code_for_token(opts \\ []) do
+    opts = Keyword.merge(default_options(), opts)
     code = Keyword.get(opts, :code)
 
     client = %Asgard.Client{
@@ -61,6 +62,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
       client_secret: Keyword.get(opts, :client_secret),
       code_verifier: Keyword.get(opts, :code_verifier),
       nonce: Keyword.get(opts, :nonce),
+      scopes: Keyword.get(opts, :scopes),
       token_endpoint_auth_method: Keyword.get(opts, :token_endpoint_auth_method),
       redirect_uri: Keyword.get(opts, :redirect_uri)
     }
@@ -148,6 +150,8 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
 
   def decode_signature(token), do: JOSE.JWT.peek_protected(token)
 
+  def scopes, do: Keyword.get(default_options(), :scopes)
+
   def response_type, do: Keyword.get(default_options(), :response_type)
 
   @spec decode_token(binary | {any, binary | map} | map) :: [any] | JOSE.JWT.t()
@@ -176,7 +180,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     do: is_integer(token["exp"]) and :os.system_time(:seconds) < token["exp"]
 
   defp do_validate({:iss, token}, _client) do
-    host = Application.get_env(:ueberauth, Ueberauth.Strategy.Asgard.OpenID) |> Keyword.get(:host)
+    host = Keyword.get(default_options(), :host)
     host === token["iss"]
   end
 

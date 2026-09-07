@@ -11,6 +11,7 @@ defmodule Ueberauth.Strategy.Asgard do
       conn
       |> options()
       |> Keyword.merge(redirect_uri: callback_url(conn))
+      |> Keyword.put_new(:scopes, OpenID.scopes())
 
     options =
       Keyword.merge(
@@ -59,7 +60,10 @@ defmodule Ueberauth.Strategy.Asgard do
   end
 
   def handle_callback!(conn),
-    do: set_errors!(conn, [error("missing_id_token", "No id token received")])
+    do:
+      set_errors!(conn, [
+        error("missing_callback_params", "Expected login callback parameters were not received")
+      ])
 
   defp id_token_callback(conn, token) do
     config = options(conn)

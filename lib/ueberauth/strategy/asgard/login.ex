@@ -12,7 +12,8 @@ defmodule Ueberauth.Strategy.Asgard.Login do
       "state" => Keyword.get(opts, :state) || random(),
       "nonce" => random(),
       "verifier" => verifier,
-      "issued_at" => System.system_time(:second)
+      "issued_at" => System.system_time(:second),
+      "scopes" => Keyword.get(opts, :scopes)
     }
 
     challenge = :crypto.hash(:sha256, verifier) |> Base.url_encode64(padding: false)
@@ -39,7 +40,7 @@ defmodule Ueberauth.Strategy.Asgard.Login do
         if is_binary(actual) and byte_size(actual) == byte_size(expected) and
              Plug.Crypto.secure_compare(actual, expected) and issued <= now and
              now - issued < @ttl do
-          {:ok, conn, [nonce: nonce, code_verifier: verifier]}
+          {:ok, conn, [nonce: nonce, code_verifier: verifier] ++ saved_scopes(saved)}
         else
           {:error, conn}
         end
@@ -48,6 +49,9 @@ defmodule Ueberauth.Strategy.Asgard.Login do
         {:error, conn}
     end
   end
+
+  defp saved_scopes(%{"scopes" => scopes}) when not is_nil(scopes), do: [scopes: scopes]
+  defp saved_scopes(_), do: []
 
   defp random, do: :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
 end

@@ -202,8 +202,7 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
           access_token: "private-access",
           refresh_token: "private-refresh",
           id_token: id_token,
-          expires_in: 300,
-          scope: "openid profile email offline_access"
+          expires_in: 300
         })
       )
     end)
@@ -225,6 +224,7 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
     assert callback.assigns.ueberauth_auth.info.email == "user@chapterspot.com"
     assert callback.assigns.ueberauth_auth.credentials.token == "private-access"
     assert callback.assigns.ueberauth_auth.credentials.refresh_token == "private-refresh"
+    assert callback.assigns.ueberauth_auth.credentials.scopes == String.split(query["scope"])
     assert get_session(callback, "asgard_code_login") == nil
     assert callback.private.asgard == nil
   end
@@ -257,6 +257,72 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
 
     assert [%{message_key: "invalid_response_type"}] = callback.assigns.ueberauth_failure.errors
     refute Map.has_key?(callback.assigns, :ueberauth_auth)
+  end
+
+  test "token errors retain the code without exposing provider descriptions", ctx do
+    Bypass.expect_once(ctx.bypass, "POST", "/token", fn conn ->
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(
+        400,
+        Poison.encode!(%{
+          error: "invalid_grant",
+          error_description: "private-token-and-provider-details"
+        })
+      )
+    end)
+
+    log =
+      capture_log(fn ->
+        assert {:error, [error: "invalid_grant", error_message: "FSID token request failed"]} =
+                 Client.get_token(%Client{client_id: "builder-prod"}, "code")
+      end)
+
+    refute log =~ "private-token-and-provider-details"
+  end
+
+  test "explicit granted scopes replace requested scopes", ctx do
+    Bypass.expect_once(ctx.bypass, "POST", "/token", fn conn ->
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(
+        200,
+        Poison.encode!(%{access_token: "access", scope: "openid", expires_in: 300})
+      )
+    end)
+
+    assert {:ok, %{scopes: ["openid"]}} =
+             Client.get_token(
+               %Client{client_id: "builder-prod", scopes: ["openid", "offline_access"]},
+               "code"
+             )
+  end
+
+  test "issuer validation uses default configuration when none is installed", ctx do
+    Application.delete_env(:ueberauth, OpenID)
+    host = OpenID.authorize_url!() |> Map.fetch!(:host)
+    issuer = "https://" <> host
+    JWS.get_jwk_by_kid({issuer, ctx.kid}, fn -> ctx.jwk end)
+
+    assert {:ok, _} =
+             OpenID.verify_token(%Client{
+               client_id: "builder-prod",
+               nonce: "expected-nonce",
+               id_token: token(ctx, %{"iss" => issuer})
+             })
+  end
+
+  test "missing callback parameters report a neutral error for both response types" do
+    for response_type <- ["code", "id_token"] do
+      conn =
+        Plug.Test.conn(:get, "/auth/asgard/callback")
+        |> Plug.Test.init_test_session(%{})
+        |> fetch_query_params()
+        |> put_private(:ueberauth_strategy, {Asgard, [response_type: response_type]})
+        |> Asgard.handle_callback!()
+
+      assert [%{message_key: "missing_callback_params"}] = conn.assigns.ueberauth_failure.errors
+    end
   end
 
   defp token(ctx, overrides) do
