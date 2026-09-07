@@ -2,7 +2,7 @@ defmodule UeberauthAsgard.MixProject do
   use Mix.Project
 
   @project_url "https://github.com/chapterspot/ueberauth_asgard"
-  @version "0.3.0"
+  @version "0.4.0"
 
   def project do
     [
@@ -32,7 +32,8 @@ defmodule UeberauthAsgard.MixProject do
       {:ueberauth, "~> 0.7"},
       {:jose, "~> 1.8"},
       {:httpoison, "~> 1.6"},
-      {:poison, "~> 3.1"}
+      {:poison, "~> 3.1"},
+      {:bypass, "~> 2.1", only: :test}
     ]
   end
 end

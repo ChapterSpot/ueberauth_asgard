@@ -15,7 +15,9 @@ defmodule Ueberauth.Strategy.Asgard.JWS do
 
   defp get(kid) do
     case GenServer.call(__MODULE__, {:get, kid}) do
-      [] -> {:not_found}
+      [] ->
+        {:not_found}
+
       [{_kid, result}] ->
         Logger.debug("Found cert in ETS")
         {:found, result}

@@ -2,7 +2,7 @@ defmodule Ueberauth.Strategy.Asgard do
   use Ueberauth.Strategy
   require Logger
 
-  alias Ueberauth.Strategy.Asgard.{Client, OpenID}
+  alias Ueberauth.Strategy.Asgard.{Client, Login, OpenID}
   alias Ueberauth.Auth.{Credentials, Extra, Info}
   alias Plug.Conn
 
@@ -20,7 +20,10 @@ defmodule Ueberauth.Strategy.Asgard do
       )
       |> with_state_param(conn)
 
-    Logger.debug("Ueberauth.Strategy.Asgard options: #{inspect(options)}")
+    {conn, options} =
+      if Keyword.get(options, :response_type, OpenID.response_type()) == "code",
+        do: Login.prepare(conn, options),
+        else: {conn, options}
 
     authorize_url =
       options
@@ -31,6 +34,34 @@ defmodule Ueberauth.Strategy.Asgard do
   end
 
   def handle_callback!(%Conn{params: %{"id_token" => token}} = conn) do
+    if Keyword.get(options(conn), :response_type, OpenID.response_type()) == "code" do
+      set_errors!(conn, [error("invalid_response_type", "Authorization code required")])
+    else
+      id_token_callback(conn, token)
+    end
+  end
+
+  def handle_callback!(%Conn{params: %{"code" => code}} = conn) do
+    case Login.consume(conn) do
+      {:ok, conn, correlation} ->
+        code_callback(conn, code, correlation)
+
+      {:error, conn} ->
+        set_errors!(conn, [error("invalid_login_state", "Login expired or could not be verified")])
+    end
+  end
+
+  def handle_callback!(
+        %Conn{params: %{"error" => "invalid_request"}} =
+          conn
+      ) do
+    set_errors!(conn, [error("asgard", "FSID could not complete login")])
+  end
+
+  def handle_callback!(conn),
+    do: set_errors!(conn, [error("missing_id_token", "No id token received")])
+
+  defp id_token_callback(conn, token) do
     config = options(conn)
 
     client = %Client{
@@ -57,15 +88,17 @@ defmodule Ueberauth.Strategy.Asgard do
     end
   end
 
-  def handle_callback!(%Conn{params: %{"code" => code}} = conn) do
+  defp code_callback(conn, code, correlation) do
     config = options(conn)
 
-    options = [
-      client_id: Keyword.get(config, :client_id),
-      client_secret: Keyword.get(config, :client_secret),
-      redirect_uri: callback_url(conn),
-      code: code
-    ]
+    options =
+      [
+        client_id: Keyword.get(config, :client_id),
+        client_secret: Keyword.get(config, :client_secret),
+        redirect_uri: callback_url(conn),
+        token_endpoint_auth_method: Keyword.get(config, :token_endpoint_auth_method),
+        code: code
+      ] ++ correlation
 
     case OpenID.exchange_code_for_token(options) do
       {:ok, client} ->
@@ -85,16 +118,6 @@ defmodule Ueberauth.Strategy.Asgard do
     end
   end
 
-  def handle_callback!(
-        %Conn{params: %{"error" => "invalid_request", "error_description" => error_description}} =
-          conn
-      ) do
-    set_errors!(conn, [error("asgard", error_description)])
-  end
-
-  def handle_callback!(conn),
-    do: set_errors!(conn, [error("missing_id_token", "No id token received")])
-
   def handle_cleanup!(conn) do
     conn
     |> put_private(:asgard_user, nil)
@@ -104,13 +127,14 @@ defmodule Ueberauth.Strategy.Asgard do
   def credentials(conn) do
     %Credentials{
       token: conn.private.asgard.access_token,
+      refresh_token: conn.private.asgard.refresh_token,
       token_type: "Bearer",
       expires: true,
       expires_at: conn.private.asgard.expiry,
       scopes: conn.private.asgard.scopes,
       other: %{
         id_token: conn.private.asgard.id_token,
-        amr: conn.private.asgard_user.amr
+        amr: Map.get(conn.private.asgard_user, :amr)
       }
     }
   end
