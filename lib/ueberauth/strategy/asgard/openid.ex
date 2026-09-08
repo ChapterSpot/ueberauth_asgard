@@ -21,8 +21,6 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     authorize_endpoint = Keyword.get(opts, :authorize_endpoint)
     email_hint = Keyword.get(opts, :email_hint)
 
-    Logger.debug("Ueberauth.Strategy.Asgard.OpenID opts: #{inspect(opts)}")
-
     query_params =
       [
         client_id: Keyword.get(opts, :client_id),
@@ -30,7 +28,9 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
         response_mode: Keyword.get(opts, :response_mode),
         response_type: Keyword.get(opts, :response_type),
         redirect_uri: Keyword.get(opts, :redirect_uri),
-        nonce: generate_nonce(length: 16),
+        nonce: Keyword.get_lazy(opts, :nonce, fn -> generate_nonce(length: 32) end),
+        code_challenge: Keyword.get(opts, :code_challenge),
+        code_challenge_method: Keyword.get(opts, :code_challenge_method),
         state: Keyword.get(opts, :state),
         acr_values: Keyword.get(opts, :acr_values)
       ]
@@ -54,11 +54,16 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
   end
 
   def exchange_code_for_token(opts \\ []) do
+    opts = Keyword.merge(default_options(), opts)
     code = Keyword.get(opts, :code)
 
     client = %Asgard.Client{
       client_id: Keyword.get(opts, :client_id),
       client_secret: Keyword.get(opts, :client_secret),
+      code_verifier: Keyword.get(opts, :code_verifier),
+      nonce: Keyword.get(opts, :nonce),
+      scopes: Keyword.get(opts, :scopes),
+      token_endpoint_auth_method: Keyword.get(opts, :token_endpoint_auth_method),
       redirect_uri: Keyword.get(opts, :redirect_uri)
     }
 
@@ -68,8 +73,8 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
          {:verify_token, {:ok, _}} <- {:verify_token, verify_token(client)} do
       {:ok, client}
     else
-      {:token, error} ->
-        Logger.error("Error communicating with FSID: #{inspect(error)}")
+      {:token, _error} ->
+        Logger.error("Error communicating with FSID")
 
         {:error,
          [
@@ -84,6 +89,10 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
       {:verify_token, _} ->
         {:error, [{:error, "verify_token"}, {:error_message, "Token could not be verified"}]}
     end
+  rescue
+    _ -> {:error, "FSID token exchange failed"}
+  catch
+    _, _ -> {:error, "FSID token exchange failed"}
   end
 
   def logout_url(opts \\ []) do
@@ -109,7 +118,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
     kid = get_kid_from_token(client.id_token)
 
     jwk =
-      Asgard.JWS.get_jwk_by_kid(kid, fn ->
+      Asgard.JWS.get_jwk_by_kid({Keyword.get(default_options(), :host), kid}, fn ->
         Logger.debug(fn -> "Didn't find cert in ETS, storing it" end)
 
         kid
@@ -117,13 +126,13 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
         |> JOSE.JWK.from_map()
       end)
 
-    #  {:nonce_valid, true} <- {:nonce_valid, token_nonce_valid?(token, client)}
     with {:verified, {true, jwt, _}} <-
            {:verified, JOSE.JWS.verify_strict(jwk, ["RS256"], client.id_token)},
          {:jwt, %JOSE.JWT{} = jwt} <- {:jwt, jwt |> Poison.decode!() |> JOSE.JWT.from_map()},
          {:expired, true} <- {:expired, validate({:exp, jwt}, client)},
          {:iss_valid, true} <- {:iss_valid, validate({:iss, jwt}, client)},
-         {:aud_valid, true} <- {:aud_valid, validate({:aud, jwt}, client)} do
+         {:aud_valid, true} <- {:aud_valid, validate({:aud, jwt}, client)},
+         {:nonce_valid, true} <- {:nonce_valid, validate({:nonce, jwt}, client)} do
       decoded_token = decode_token(client.id_token)
       {:ok, decoded_token}
     else
@@ -132,11 +141,18 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
       {:expired, false} -> {:error, "The token is expired"}
       {:iss_valid, false} -> {:error, "The issuer cannot be verified"}
       {:aud_valid, false} -> {:error, "The token's audience cannot be verified"}
-      error -> {:error, error}
+      {:nonce_valid, false} -> {:error, "The token's nonce cannot be verified"}
+      _ -> {:error, "The token could not be verified"}
     end
+  rescue
+    _ -> {:error, "The token could not be verified"}
   end
 
   def decode_signature(token), do: JOSE.JWT.peek_protected(token)
+
+  def scopes, do: Keyword.get(default_options(), :scopes)
+
+  def response_type, do: Keyword.get(default_options(), :response_type)
 
   @spec decode_token(binary | {any, binary | map} | map) :: [any] | JOSE.JWT.t()
   def decode_token(token), do: JOSE.JWT.peek_payload(token)
@@ -150,8 +166,7 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
   defp get_kid_from_token(token) do
     %JOSE.JWS{
       fields: %{
-        "kid" => kid,
-        "typ" => "JWT"
+        "kid" => kid
       }
     } = decode_signature(token)
 
@@ -161,12 +176,27 @@ defmodule Ueberauth.Strategy.Asgard.OpenID do
   defp validate({type, %JOSE.JWT{} = jwt}, %Asgard.Client{} = client),
     do: do_validate({type, jwt.fields}, client)
 
-  defp do_validate({:exp, token}, _client), do: :os.system_time(:seconds) < token["exp"]
+  defp do_validate({:exp, token}, _client),
+    do: is_integer(token["exp"]) and :os.system_time(:seconds) < token["exp"]
 
   defp do_validate({:iss, token}, _client) do
-    host = Application.get_env(:ueberauth, Ueberauth.Strategy.Asgard.OpenID) |> Keyword.get(:host)
+    host = Keyword.get(default_options(), :host)
     host === token["iss"]
   end
 
-  defp do_validate({:aud, token}, client), do: client.client_id === token["aud"]
+  defp do_validate({:aud, token}, client) do
+    case token["aud"] do
+      aud when is_binary(aud) -> aud == client.client_id
+      [aud] -> aud == client.client_id
+      aud when is_list(aud) -> client.client_id in aud and token["azp"] == client.client_id
+      _ -> false
+    end
+  end
+
+  defp do_validate({:nonce, _token}, %Asgard.Client{nonce: nil}), do: true
+
+  defp do_validate({:nonce, token}, %Asgard.Client{nonce: nonce}) do
+    is_binary(token["nonce"]) and byte_size(token["nonce"]) == byte_size(nonce) and
+      Plug.Crypto.secure_compare(token["nonce"], nonce)
+  end
 end

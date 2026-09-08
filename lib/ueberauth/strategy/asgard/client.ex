@@ -15,10 +15,23 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
   alias Ueberauth.Strategy.Asgard
 
+  @derive {Inspect,
+           except: [
+             :client_secret,
+             :access_token,
+             :refresh_token,
+             :id_token,
+             :code_verifier,
+             :nonce
+           ]}
   defstruct [
     :client_id,
     :client_secret,
     :access_token,
+    :refresh_token,
+    :code_verifier,
+    :nonce,
+    :token_endpoint_auth_method,
     :id_token,
     :redirect_uri,
     :scopes,
@@ -101,25 +114,32 @@ defmodule Ueberauth.Strategy.Asgard.Client do
       {:token, Map.merge(client, %{code: code, grant_type: "authorization_code"})}
       |> build_params()
 
-    case post("/token", {:form, params}, post_headers()) do
-      {:ok, %{body: %{"error" => error}} = response} ->
-        {:error, [{:error, error}, {:error_message, response.body["error_description"]}]}
+    {params, headers} = token_auth(params, client)
+
+    case post("/token", {:form, params}, headers, recv_timeout: 10_000, timeout: 10_000) do
+      {:ok, %{body: %{"error" => error}}} ->
+        {:error, [error: error, error_message: "FSID token request failed"]}
 
       {:ok, %{body: %{"access_token" => access_token}} = response} ->
         response =
           Map.merge(client, %{
             access_token: access_token,
+            refresh_token: response.body["refresh_token"],
             id_token: response.body["id_token"],
-            scopes: response.body["scope"] |> String.split(),
+            scopes: token_scopes(response.body["scope"], client.scopes),
             expiry: response.body["expires_in"] |> calculate_expiry!()
           })
 
         {:ok, response}
 
-      {:error, error} ->
-        {:error, [{:error, "unknown"}, {:error_message, error}]}
+      {:error, _error} ->
+        {:error, [error: "unknown", error_message: "FSID token request failed"]}
     end
   end
+
+  defp token_scopes(nil, requested) when is_list(requested), do: requested
+  defp token_scopes(nil, requested), do: String.split(requested || "")
+  defp token_scopes(scope, _requested), do: String.split(scope)
 
   def logout(nil), do: nil
 
@@ -152,7 +172,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
   def logout(_), do: nil
 
   defp build_params({:token, %{} = params}) do
-    param_whitelist = ~w(code client_id client_secret grant_type redirect_uri)a
+    param_whitelist = ~w(code client_id client_secret grant_type redirect_uri code_verifier)a
 
     params
     |> Map.take(param_whitelist)
@@ -160,6 +180,16 @@ defmodule Ueberauth.Strategy.Asgard.Client do
   end
 
   defp post_headers(), do: %{"Content-Type" => "application/x-www-form-urlencoded"}
+
+  defp token_auth(params, %{token_endpoint_auth_method: "client_secret_basic"} = client) do
+    credentials =
+      URI.encode_www_form(client.client_id) <> ":" <> URI.encode_www_form(client.client_secret)
+
+    {Keyword.drop(params, [:client_id, :client_secret]),
+     Map.put(post_headers(), "Authorization", "Basic " <> Base.encode64(credentials))}
+  end
+
+  defp token_auth(params, _client), do: {params, post_headers()}
 
   defp calculate_expiry!(expiry) do
     now = DateTime.utc_now() |> DateTime.to_unix()
