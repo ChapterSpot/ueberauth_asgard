@@ -16,11 +16,15 @@
     {
       "text": "Keep feat/asgard-pkce-refresh until both consumers repin to the merged main commit. Deleting the branch after squash made the still-pinned 4286fa66900d3c6460e96cb7036f8e343e971e40 unavailable to Mix's normal fetch and caused Atlas's production image build to fail before deployment. Restored the branch at that exact commit and verified a fresh clone checks it out successfully. No source change. Atlas's failed build is being rerun after this concrete fix.",
       "timestamp": "2026-09-08T01:51:36Z"
+    },
+    {
+      "text": "Production consumers now use the tested library commit. Atlas 0.63.0 deploy https://github.com/ChapterSpot/atlas/actions/runs/34177819534 passed after restoring the pinned branch, and Builder 1.59.0 deploy https://github.com/ChapterSpot/builder/actions/runs/34179864000 passed. Real code/S256 browser logins succeeded through asgard.chapterspot.com in both apps as Manuel; Builder stored a ready encrypted identity requiring access and refresh credentials. Library merge remains ca49ce3a878b44064631a4274bad5ee0c7b8d4a0; no library deploy workflow exists. The subsequent Builder token-exchange invalid_scope is a client provisioning blocker, not the code-login implementation. Keep the branch until the consumer repin task https://github.com/chapterspot/ueberauth_asgard/blob/beadwork/issues/uasgard-8ms.json is completed.",
+      "timestamp": "2026-09-08T02:49:31Z"
     }
   ],
   "priority": 1,
   "status": "closed",
   "title": "Support PKCE code login and rotating refresh credentials without secret logging",
   "type": "task",
-  "updated_at": "2026-09-08T02:04:23Z"
+  "updated_at": "2026-09-08T02:49:31Z"
 }
