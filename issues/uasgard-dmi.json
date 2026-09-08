@@ -2,6 +2,8 @@
   "assignee": "Manuel Zubieta",
   "blocked_by": [],
   "blocks": [],
+  "closed_at": "2026-09-08T02:04:23Z",
+  "close_reason": "Merged as ca49ce3a878b44064631a4274bad5ee0c7b8d4a0 and verified in Atlas production code/S256 login after deploy run34177819534. Keep the restored pinned branch until consumers repin.",
   "created": "2026-09-07T19:09:46Z",
   "description": "Advances: ueberauth_asgard.authorization_code\nReady-for: implement\n\nDeliverable:\nExtend the existing Ueberauth Asgard strategy with per-login state, nonce and S256 PKCE. Verify callback state/nonce, pass code_verifier to token exchange, retain refresh_token and token expiry in Ueberauth credentials, and accept offline_access scope. Remove logging of options, token bodies and client secrets. Preserve existing id-token consumers while making code login secure. Document the contract and add meaningful tests. This library has no existing Ancora corpus; document its behavior in a small repo spec without adopting unrelated application infrastructure.\n\nVerification:\nAuthorization URL contains S256 challenge but no verifier or secret; matching code callback sends verifier and returns verified user/access/refresh credentials. Reject state, nonce, issuer, audience, signature and expiry failures. Captured logs contain no test secrets or tokens. Run library tests and formatting in a container, then consumer integration tests in Atlas and Builder.\n\nOut of Scope (files):\nPrimary checkout and untracked test_bypass.exs, Builder/Atlas application auth stores.\nAllowed touches:\nLibrary strategy, Client/OpenID helpers, tests, README/spec and version metadata in a linked worktree.\nOut of Scope (intent):\nNo independent application auth stack, no production merge or deployment.\nMerge gate:\nReal PR against main, tests and consumer checks pass. Builder PR 164 remains unchanged.\nEvidence:\nCurrent main 7203af2 lacks code_verifier and refresh_token fields. Strategy/OpenID debug logs interpolate client options including client_secret. This blocks new issuer code+PKCE login in the assigned Builder/Atlas OBO work.",
   "id": "uasgard-dmi",
@@ -17,8 +19,8 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Support PKCE code login and rotating refresh credentials without secret logging",
   "type": "task",
-  "updated_at": "2026-09-08T01:51:36Z"
+  "updated_at": "2026-09-08T02:04:23Z"
 }
