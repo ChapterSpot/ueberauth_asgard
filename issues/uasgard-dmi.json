@@ -10,11 +10,15 @@
     {
       "text": "Manuel authorized the ordered production rollout. PR8 merged to main at ca49ce3a878b44064631a4274bad5ee0c7b8d4a0 on 2026-09-08 01:46:36 UTC. Greptile approved and the tested head was 4286fa66900d3c6460e96cb7036f8e343e971e40. This library has no publish/deploy workflow; Builder and Atlas consume that exact tested Git commit. Local and browser consumer verification passed before merge. Production consumer rollout follows with Atlas PR170, then the combined Builder release.",
       "timestamp": "2026-09-08T01:47:04Z"
+    },
+    {
+      "text": "Keep feat/asgard-pkce-refresh until both consumers repin to the merged main commit. Deleting the branch after squash made the still-pinned 4286fa66900d3c6460e96cb7036f8e343e971e40 unavailable to Mix's normal fetch and caused Atlas's production image build to fail before deployment. Restored the branch at that exact commit and verified a fresh clone checks it out successfully. No source change. Atlas's failed build is being rerun after this concrete fix.",
+      "timestamp": "2026-09-08T01:51:36Z"
     }
   ],
   "priority": 1,
   "status": "in_progress",
   "title": "Support PKCE code login and rotating refresh credentials without secret logging",
   "type": "task",
-  "updated_at": "2026-09-08T01:47:04Z"
+  "updated_at": "2026-09-08T01:51:36Z"
 }
