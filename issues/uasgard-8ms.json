@@ -1,0 +1,14 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-09-08T02:04:24Z",
+  "description": "No spec subject.\nReady-for: implement\n\nDeliverable:\nUpdate Builder and Atlas mix.exs and mix.lock from ueberauth_asgard 4286fa66900d3c6460e96cb7036f8e343e971e40 to merged main commit ca49ce3a878b44064631a4274bad5ee0c7b8d4a0. After both consumers use a reachable main commit, remove the retained feat/asgard-pkce-refresh branch.\n\nVerification:\nCompare the two library trees and confirm equivalent code. Cold dependency fetch in each consumer succeeds without the retained branch. Run focused authorization-code and delegated-token tests, formatting and required CI in each consumer.\n\nEvidence:\nAtlas production run https://github.com/ChapterSpot/atlas/actions/runs/34177819534 attempt1 failed with unable to read tree 4286fa6 after branch deletion following squash. Restoring the branch fixed a fresh clone checkout and attempt2 deployed successfully.\n\nOut of Scope (files):\nLibrary implementation and unrelated application code.\nAllowed touches:\nBuilder and Atlas mix.exs, mix.lock and necessary release metadata in isolated worktrees.\nOut of Scope (intent):\nNo authentication behavior changes or credential rotation. Do not delete the retained branch before both consumers are repinned.\nMerge gate:\nNormal reviewed PRs with required CI green; production rollout verified before branch cleanup.",
+  "id": "uasgard-8ms",
+  "labels": [],
+  "priority": 2,
+  "status": "open",
+  "title": "Repin Builder and Atlas to the merged Asgard library commit",
+  "type": "task",
+  "updated_at": "2026-09-08T02:04:24Z"
+}
