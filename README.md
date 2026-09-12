@@ -48,6 +48,18 @@ callback path. New consumers should use code login. Client-secret POST remains
 the default token authentication method for compatibility; select Basic as shown
 above for the new Asgard configuration.
 
+## HTTP transport
+
+Token and JWKS requests use Req and Finch. Elixir 1.15 or later is required.
+HTTPoison and Hackney are no longer dependencies. Automatic retries and redirects
+are disabled, including for single-use authorization-code exchanges.
+
+Connection, pool checkout and receive timeouts default to 10 seconds. Set
+`connect_timeout` or `receive_timeout` in the `OpenID` configuration to a positive
+number of milliseconds to shorten them. Values above 10 seconds are capped;
+invalid values use the default. Provider descriptions and arbitrary error values
+are not returned. Recognized OAuth error codes retain the existing error shape.
+
 ## Verification
 
 `mix test` exercises the complete Ueberauth request/callback, PKCE verifier and
