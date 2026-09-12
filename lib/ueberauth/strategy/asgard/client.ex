@@ -10,8 +10,8 @@ defmodule Ueberauth.Strategy.Asgard.Client do
   {:ok, %Ueberauth.Strategy.Asgard.Client{access_token: "abcdef", ...}}
   """
 
-  use HTTPoison.Base
-  require Logger
+  @timeout 10_000
+  @oauth_errors ~w(invalid_request invalid_client invalid_grant unauthorized_client unsupported_grant_type invalid_scope server_error temporarily_unavailable)
 
   alias Ueberauth.Strategy.Asgard
 
@@ -49,16 +49,21 @@ defmodule Ueberauth.Strategy.Asgard.Client do
         }
 
   def certificates() do
-    case get("/certificates") do
-      {:ok, response} ->
-        response.body["keys"]
+    case request(:get, "/certificates") do
+      {:ok, status, %{"keys" => keys}} when status in 200..299 and is_list(keys) ->
+        if Enum.all?(keys, &is_map/1), do: keys, else: {:error, :invalid_certificates}
 
-      {:error, response} ->
-        {:error, response}
+      _ ->
+        {:error, :certificates_request_failed}
     end
   end
 
-  def certificates!(), do: get!("/certificates").body["keys"]
+  def certificates!() do
+    case certificates() do
+      {:error, _} -> raise "FSID certificates request failed"
+      certificates -> certificates
+    end
+  end
 
   def certificates(kid) do
     certificate =
@@ -73,7 +78,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
     case certificate do
       nil ->
-        {:error, "Certificate not found by kid #{kid}"}
+        {:error, "Certificate not found"}
 
       {:error, error} ->
         {:error, error}
@@ -84,8 +89,10 @@ defmodule Ueberauth.Strategy.Asgard.Client do
   end
 
   def certificates!(kid) do
-    {:ok, {:certificate, certificate}} = certificates(kid)
-    certificate
+    case certificates(kid) do
+      {:ok, {:certificate, certificate}} -> certificate
+      {:error, _} -> raise "FSID certificate lookup failed"
+    end
   end
 
   def generate_email_hint_signature(email, options) do
@@ -116,26 +123,41 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
     {params, headers} = token_auth(params, client)
 
-    case post("/token", {:form, params}, headers, recv_timeout: 10_000, timeout: 10_000) do
-      {:ok, %{body: %{"error" => error}}} ->
-        {:error, [error: error, error_message: "FSID token request failed"]}
+    case request(:post, "/token", form: params, headers: headers) do
+      {:ok, _, %{"error" => error}} ->
+        token_error(if error in @oauth_errors, do: error, else: "unknown")
 
-      {:ok, %{body: %{"access_token" => access_token}} = response} ->
-        response =
-          Map.merge(client, %{
-            access_token: access_token,
-            refresh_token: response.body["refresh_token"],
-            id_token: response.body["id_token"],
-            scopes: token_scopes(response.body["scope"], client.scopes),
-            expiry: response.body["expires_in"] |> calculate_expiry!()
-          })
+      {:ok, status, %{"access_token" => access_token, "expires_in" => expiry} = body}
+      when status in 200..299 and is_binary(access_token) and is_integer(expiry) and expiry >= 0 ->
+        if valid_token_fields?(body) do
+          {:ok,
+           %{
+             client
+             | access_token: access_token,
+               refresh_token: body["refresh_token"],
+               id_token: body["id_token"],
+               scopes: token_scopes(body["scope"], client.scopes),
+               expiry: calculate_expiry!(expiry)
+           }}
+        else
+          token_error("unknown")
+        end
 
-        {:ok, response}
-
-      {:error, _error} ->
-        {:error, [error: "unknown", error_message: "FSID token request failed"]}
+      _ ->
+        token_error("unknown")
     end
+  rescue
+    _ -> token_error("unknown")
   end
+
+  defp valid_token_fields?(body) do
+    Enum.all?(["refresh_token", "id_token", "scope"], fn key ->
+      is_nil(body[key]) or is_binary(body[key])
+    end)
+  end
+
+  defp token_error(error),
+    do: {:error, [error: error, error_message: "FSID token request failed"]}
 
   defp token_scopes(nil, requested) when is_list(requested), do: requested
   defp token_scopes(nil, requested), do: String.split(requested || "")
@@ -176,7 +198,7 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
     params
     |> Map.take(param_whitelist)
-    |> Enum.to_list()
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
   end
 
   defp post_headers(), do: %{"Content-Type" => "application/x-www-form-urlencoded"}
@@ -198,7 +220,38 @@ defmodule Ueberauth.Strategy.Asgard.Client do
     DateTime.from_unix!(now)
   end
 
-  # -- Base callbacks
+  defp request(method, endpoint, options \\ []) do
+    options =
+      Keyword.merge(options,
+        method: method,
+        url: process_request_url(endpoint),
+        retry: false,
+        redirect: false,
+        decode_body: false,
+        compressed: false,
+        receive_timeout: timeout(:receive_timeout),
+        finch: [
+          pool_timeout: timeout(:connect_timeout),
+          conn_opts: [transport_opts: [timeout: timeout(:connect_timeout)]]
+        ]
+      )
+
+    with {:ok, %{status: status, body: body}} <- Req.request(options),
+         {:ok, decoded} <- Poison.decode(body) do
+      {:ok, status, decoded}
+    else
+      _ -> {:error, :request_failed}
+    end
+  rescue
+    _ -> {:error, :request_failed}
+  catch
+    :exit, _ -> {:error, :request_failed}
+  end
+
+  defp timeout(key) do
+    value = Application.get_env(:ueberauth, Asgard.OpenID, []) |> Keyword.get(key, @timeout)
+    if is_integer(value) and value > 0, do: min(value, @timeout), else: @timeout
+  end
 
   def process_request_url(endpoint) do
     config = Application.get_env(:ueberauth, Asgard.OpenID)
@@ -217,6 +270,4 @@ defmodule Ueberauth.Strategy.Asgard.Client do
 
     url <> endpoint
   end
-
-  def process_response_body(body), do: Poison.decode!(body)
 end

@@ -5,7 +5,20 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
   alias Ueberauth.Strategy.Asgard.{Client, Login, OpenID, JWS}
   alias Ueberauth.Strategy.Asgard
 
-  setup do
+  setup context do
+    if context[:atlas_defaults] do
+      previous_defaults = Application.fetch_env(:req, :default_options)
+      start_supervised!({Finch, name: Atlas.Finch})
+      Req.default_options(Keyword.put(Req.default_options(), :finch, name: Atlas.Finch))
+
+      on_exit(fn ->
+        case previous_defaults do
+          {:ok, options} -> Req.default_options(options)
+          :error -> Application.delete_env(:req, :default_options)
+        end
+      end)
+    end
+
     bypass = Bypass.open()
     host = "http://localhost:#{bypass.port}"
     previous = Application.get_env(:ueberauth, OpenID)
@@ -163,6 +176,7 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
     assert {:error, _} = OpenID.verify_token(%Client{id_token: "malformed"})
   end
 
+  @tag :atlas_defaults
   test "the complete strategy callback returns verified user and refresh credentials", ctx do
     provider =
       {Asgard,
@@ -185,6 +199,15 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
     saved = get_session(request, "asgard_code_login")
     assert query["state"] == saved["state"]
     assert query["redirect_uri"] == "https://builder.test/auth/asgard/callback"
+    ctx = %{ctx | kid: "uncached-" <> ctx.kid}
+    {_, public_key} = JOSE.JWK.to_public_map(ctx.jwk)
+
+    Bypass.expect_once(ctx.bypass, "GET", "/certificates", fn conn ->
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(200, Poison.encode!(%{keys: [Map.put(public_key, "kid", ctx.kid)]}))
+    end)
+
     id_token = token(ctx, %{"nonce" => query["nonce"]})
 
     Bypass.expect_once(ctx.bypass, "POST", "/token", fn conn ->
@@ -257,6 +280,34 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
 
     assert [%{message_key: "invalid_response_type"}] = callback.assigns.ueberauth_failure.errors
     refute Map.has_key?(callback.assigns, :ueberauth_auth)
+  end
+
+  test "explicit legacy ID-token callback still accepts a verified token", ctx do
+    provider = {Asgard, [response_type: "id_token", client_id: "builder-prod"]}
+
+    request =
+      Plug.Test.conn(:get, "https://builder.test/auth/asgard")
+      |> Plug.Test.init_test_session(%{})
+      |> fetch_query_params()
+      |> Ueberauth.run_request(:asgard, provider)
+
+    [location] = get_resp_header(request, "location")
+    query = location |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+    result =
+      Plug.Test.conn(
+        :get,
+        "https://builder.test/auth/asgard/callback?" <>
+          URI.encode_query(%{"id_token" => token(ctx, %{}), "state" => query["state"]})
+      )
+      |> Plug.Test.recycle_cookies(request)
+      |> Plug.Test.init_test_session(%{})
+      |> fetch_query_params()
+      |> fetch_cookies()
+      |> Ueberauth.run_callback(:asgard, provider)
+
+    refute Map.has_key?(result.assigns, :ueberauth_failure)
+    assert result.assigns.ueberauth_auth.uid == "user-subject"
   end
 
   test "token errors retain the code without exposing provider descriptions", ctx do

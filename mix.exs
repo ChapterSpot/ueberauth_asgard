@@ -8,7 +8,7 @@ defmodule UeberauthAsgard.MixProject do
     [
       app: :ueberauth_asgard,
       version: @version,
-      elixir: "~> 1.6",
+      elixir: "~> 1.15",
       name: "Asgard Ueberauth Strategy",
       source_url: @project_url,
       homepage_url: @project_url,
@@ -20,7 +20,7 @@ defmodule UeberauthAsgard.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :httpoison, :ueberauth],
+      extra_applications: [:logger, :ueberauth],
       mod: {UeberauthAsgard, []}
     ]
   end
@@ -31,7 +31,7 @@ defmodule UeberauthAsgard.MixProject do
       {:plug, "~> 1.0"},
       {:ueberauth, "~> 0.10.8"},
       {:jose, "~> 1.8"},
-      {:httpoison, "~> 1.6"},
+      {:req, "~> 0.7.4"},
       {:poison, "~> 3.1"},
       {:bypass, "~> 2.1", only: :test}
     ]
