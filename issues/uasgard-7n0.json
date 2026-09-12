@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Manuel Zubieta",
   "blocked_by": [],
   "blocks": [],
   "created": "2026-09-12T20:50:16Z",
@@ -7,8 +7,8 @@
   "id": "uasgard-7n0",
   "labels": [],
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Replace Asgard client HTTPoison transport with Req",
   "type": "task",
-  "updated_at": "2026-09-12T20:50:16Z"
+  "updated_at": "2026-09-12T21:29:11Z"
 }
