@@ -4,7 +4,20 @@ defmodule UeberauthAsgard.ClientTest do
   import ExUnit.CaptureLog
   alias Ueberauth.Strategy.Asgard.{Client, OpenID}
 
-  setup do
+  setup context do
+    if context[:atlas_defaults] do
+      previous_defaults = Application.fetch_env(:req, :default_options)
+      start_supervised!({Finch, name: Atlas.Finch})
+      Req.default_options(Keyword.put(Req.default_options(), :finch, name: Atlas.Finch))
+
+      on_exit(fn ->
+        case previous_defaults do
+          {:ok, options} -> Req.default_options(options)
+          :error -> Application.delete_env(:req, :default_options)
+        end
+      end)
+    end
+
     bypass = Bypass.open()
     previous = Application.get_env(:ueberauth, OpenID)
     host = "http://localhost:#{bypass.port}"
@@ -44,6 +57,7 @@ defmodule UeberauthAsgard.ClientTest do
     end
   end
 
+  @tag :atlas_defaults
   test "Basic credentials and form values retain exact encoding and returned refresh credentials",
        %{bypass: bypass} do
     client = %Client{
@@ -182,6 +196,7 @@ defmodule UeberauthAsgard.ClientTest do
     refute log =~ "private-"
   end
 
+  @tag :atlas_defaults
   test "a delayed real response hits the finite receive timeout" do
     {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
     {:ok, {_, port}} = :inet.sockname(listener)
@@ -210,6 +225,85 @@ defmodule UeberauthAsgard.ClientTest do
       Task.await(server)
       :gen_tcp.close(listener)
     end
+  end
+
+  @tag :atlas_defaults
+  test "token and uncached JWKS requests preserve the host named pool and defaults", %{
+    bypass: bypass
+  } do
+    defaults = Req.default_options()
+    pool = Process.whereis(Atlas.Finch)
+
+    Bypass.expect_once(
+      bypass,
+      "POST",
+      "/token",
+      &json(&1, 200, %{access_token: "local-token", expires_in: 60})
+    )
+
+    Bypass.expect_once(
+      bypass,
+      "GET",
+      "/certificates",
+      &json(&1, 200, %{keys: [%{kid: "uncached", kty: "RSA"}]})
+    )
+
+    Bypass.expect_once(bypass, "GET", "/consumer", &json(&1, 200, %{consumer: true}))
+
+    assert {:ok, %{access_token: "local-token"}} = Client.get_token(%Client{}, "local-code")
+    assert {:ok, {:certificate, %{"kid" => "uncached"}}} = Client.certificates("uncached")
+    assert Req.default_options() == defaults
+    assert Process.whereis(Atlas.Finch) == pool
+    assert Process.alive?(pool)
+
+    assert {:ok, %{body: %{"consumer" => true}}} =
+             Req.get("http://localhost:#{bypass.port}/consumer")
+  end
+
+  @tag :atlas_defaults
+  test "small compressed responses are refused even when host defaults opt into decompression", %{
+    bypass: bypass
+  } do
+    Req.default_options(Keyword.put(Req.default_options(), :compressed, true))
+    defaults = Req.default_options()
+
+    log =
+      capture_log(fn ->
+        for {path, payload} <- [
+              {"/token", %{access_token: "private-compressed-token", expires_in: 60}},
+              {"/certificates", %{keys: [%{kid: "private-compressed-key", kty: "RSA"}]}}
+            ],
+            encoding <- ["gzip", "gzip, gzip"] do
+          body = Poison.encode!(payload) |> :zlib.gzip()
+          body = if encoding == "gzip, gzip", do: :zlib.gzip(body), else: body
+          assert byte_size(body) < 512
+
+          Bypass.expect_once(
+            bypass,
+            if(path == "/token", do: "POST", else: "GET"),
+            path,
+            fn conn ->
+              assert get_req_header(conn, "accept-encoding") == []
+
+              conn
+              |> put_resp_content_type("application/json")
+              |> put_resp_header("content-encoding", encoding)
+              |> send_resp(200, body)
+            end
+          )
+
+          result =
+            if path == "/token",
+              do: Client.get_token(%Client{}, "private-code"),
+              else: Client.certificates()
+
+          assert {:error, _} = result
+          refute inspect(result) =~ "private-"
+        end
+      end)
+
+    refute log =~ "private-"
+    assert Req.default_options() == defaults
   end
 
   defp json(conn, status, body) do

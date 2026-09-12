@@ -228,9 +228,12 @@ defmodule Ueberauth.Strategy.Asgard.Client do
         retry: false,
         redirect: false,
         decode_body: false,
+        compressed: false,
         receive_timeout: timeout(:receive_timeout),
-        pool_timeout: timeout(:connect_timeout),
-        connect_options: [timeout: timeout(:connect_timeout)]
+        finch: [
+          pool_timeout: timeout(:connect_timeout),
+          conn_opts: [transport_opts: [timeout: timeout(:connect_timeout)]]
+        ]
       )
 
     with {:ok, %{status: status, body: body}} <- Req.request(options),

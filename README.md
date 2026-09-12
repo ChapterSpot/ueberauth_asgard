@@ -50,7 +50,7 @@ above for the new Asgard configuration.
 
 ## HTTP transport
 
-Token and JWKS requests use Req and Finch. Elixir 1.15 or later is required.
+Token and JWKS requests use Req 0.7.4 or later in the 0.7 series and Finch. Elixir 1.15 or later is required.
 HTTPoison and Hackney are no longer dependencies. Automatic retries and redirects
 are disabled, including for single-use authorization-code exchanges.
 
@@ -59,6 +59,17 @@ Connection, pool checkout and receive timeouts default to 10 seconds. Set
 number of milliseconds to shorten them. Values above 10 seconds are capped;
 invalid values use the default. Provider descriptions and arbitrary error values
 are not returned. Recognized OAuth error codes retain the existing error shape.
+
+Asgard supplies request-local Finch connection and checkout settings. It does
+not inherit a host application's named Finch pool, change Req global defaults,
+or reconfigure the host pool. Its timeout bounds still apply when a host sets
+`Req.default_options(finch: [name: MyApp.Finch])`.
+
+Response decompression and automatic archive decoding are disabled, including
+when host defaults enable compression. Token and JWKS endpoints must return
+uncompressed JSON. This keeps provider-selected compression out of the token
+and certificate parsing path. The Req floor includes the fix for
+[GHSA-655f-mp8p-96gv](https://github.com/wojtekmach/req/security/advisories/GHSA-655f-mp8p-96gv).
 
 ## Verification
 

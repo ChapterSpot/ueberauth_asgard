@@ -31,7 +31,7 @@ defmodule UeberauthAsgard.MixProject do
       {:plug, "~> 1.0"},
       {:ueberauth, "~> 0.10.8"},
       {:jose, "~> 1.8"},
-      {:req, "~> 0.5.0"},
+      {:req, "~> 0.7.4"},
       {:poison, "~> 3.1"},
       {:bypass, "~> 2.1", only: :test}
     ]

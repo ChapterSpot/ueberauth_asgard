@@ -5,7 +5,20 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
   alias Ueberauth.Strategy.Asgard.{Client, Login, OpenID, JWS}
   alias Ueberauth.Strategy.Asgard
 
-  setup do
+  setup context do
+    if context[:atlas_defaults] do
+      previous_defaults = Application.fetch_env(:req, :default_options)
+      start_supervised!({Finch, name: Atlas.Finch})
+      Req.default_options(Keyword.put(Req.default_options(), :finch, name: Atlas.Finch))
+
+      on_exit(fn ->
+        case previous_defaults do
+          {:ok, options} -> Req.default_options(options)
+          :error -> Application.delete_env(:req, :default_options)
+        end
+      end)
+    end
+
     bypass = Bypass.open()
     host = "http://localhost:#{bypass.port}"
     previous = Application.get_env(:ueberauth, OpenID)
@@ -163,6 +176,7 @@ defmodule UeberauthAsgard.AuthorizationCodeTest do
     assert {:error, _} = OpenID.verify_token(%Client{id_token: "malformed"})
   end
 
+  @tag :atlas_defaults
   test "the complete strategy callback returns verified user and refresh credentials", ctx do
     provider =
       {Asgard,
